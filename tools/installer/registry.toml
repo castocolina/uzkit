@@ -1,0 +1,444 @@
+# uz-kit installer registry — the single declarative source of truth.
+#
+# One array of tables: [[tool]]. Each row declares a `kind`; a generic strategy
+# per kind performs the install (see installer/strategies.py). The irregular long
+# tail lives behind kind="custom" + fn="install_<name>" (installer/custom.py).
+# Loaded by installer/model.py via stdlib tomllib (python >= 3.11, no deps).
+#
+# Common fields: id (unique), name, kind, category, priority, cmd (defaults to id),
+#   requires=[ids] (installed first AND dragged in if missing), bin_dir (PATH-managed),
+#   setup (one-time post-install shell command), notes.
+# Per-kind:
+#   pkg            pkg.{debian,arch,brew}, alias_cmd (debian)
+#   cargo          crate, pkg.{arch,brew} fallback
+#   node           npm_pkg  (installed via volta/pnpm — never bare npm)
+#   curl           url, shell (sh|bash), brew (macOS override), bin_dir
+#   github-release repo, asset (templated {ver}{os}{arch.deb|go|suffix|machine}), member, raw
+#   marketplace    marketplace, marketplace_ref, plugins[]
+#   launcher       bootstrap_curl/bootstrap_brew, wiring, update, verify, wired_marker, interactive
+#   custom         fn
+# Optional [tool.version] block: latest="github:owner/repo|crates:name|json:URL#key",
+#   installed_cmd, installed_re — powers the `sync` outdated check.
+
+# ─────────────────────────────────────────── P0: search & data
+[[tool]]
+id = "rg"
+name = "ripgrep"
+kind = "pkg"
+category = "search"
+priority = "P0"
+pkg = { debian = "ripgrep", arch = "ripgrep", brew = "ripgrep" }
+
+[[tool]]
+id = "fd"
+name = "fd"
+kind = "pkg"
+category = "search"
+priority = "P0"
+pkg = { debian = "fd-find", arch = "fd", brew = "fd" }
+alias_cmd = "fdfind"
+notes = "Debian binary: fdfind"
+
+[[tool]]
+id = "jq"
+name = "jq"
+kind = "pkg"
+category = "data"
+priority = "P0"
+pkg = { debian = "jq", arch = "jq", brew = "jq" }
+
+[[tool]]
+id = "yq"
+name = "yq"
+kind = "github-release"
+category = "data"
+priority = "P0"
+repo = "mikefarah/yq"
+asset = "yq_linux_{arch.deb}"
+raw = true
+bin_dir = "~/.local/bin"
+notes = "Binary from GitHub"
+[tool.version]
+latest = "github:mikefarah/yq"
+installed_cmd = "yq --version"
+installed_re = "v([0-9.]+)"
+
+[[tool]]
+id = "gh"
+name = "GitHub CLI"
+kind = "custom"
+fn = "install_gh"
+category = "git"
+priority = "P0"
+notes = "GitHub CLI (apt repo / pacman / brew)"
+
+# ─────────────────────────────────────────── P0: package managers / toolchains
+[[tool]]
+id = "uv"
+name = "uv"
+kind = "curl"
+category = "pkg-mgr"
+priority = "P0"
+url = "https://astral.sh/uv/install.sh"
+shell = "sh"
+bin_dir = "~/.local/bin"
+notes = "Python package manager"
+
+[[tool]]
+id = "volta"
+name = "volta"
+kind = "curl"
+category = "pkg-mgr"
+priority = "P0"
+url = "https://get.volta.sh"
+shell = "bash"
+bin_dir = "~/.volta/bin"
+notes = "Node.js toolchain"
+
+[[tool]]
+id = "pnpm"
+name = "pnpm"
+kind = "custom"
+fn = "install_pnpm"
+category = "pkg-mgr"
+priority = "P0"
+requires = ["volta"]
+setup = "pnpm self-update && pnpm setup"
+notes = "Via volta; setup configures PNPM_HOME + global bin dir"
+
+[[tool]]
+id = "node"
+name = "Node.js 22 LTS"
+kind = "custom"
+fn = "install_node"
+category = "pkg-mgr"
+priority = "P0"
+requires = ["volta"]
+notes = "Node 22 LTS via volta (volta install node@22)"
+
+# ─────────────────────────────────────────── P0: workflow
+[[tool]]
+id = "mmdc"
+name = "mermaid CLI"
+kind = "node"
+category = "workflow"
+priority = "P0"
+npm_pkg = "@mermaid-js/mermaid-cli"
+requires = ["volta"]
+notes = "Diagram generation"
+
+# ─────────────────────────────────────────── P1: navigation & exploration
+[[tool]]
+id = "eza"
+name = "eza"
+kind = "github-release"
+category = "nav"
+priority = "P1"
+repo = "eza-community/eza"
+asset = "eza_{arch.machine}-unknown-linux-musl.tar.gz"
+member = "eza"
+pkg = { arch = "eza", brew = "eza" }
+bin_dir = "~/.local/bin"
+notes = "Binary from GitHub (apt/musl); pacman/brew on arch/mac"
+[tool.version]
+latest = "github:eza-community/eza"
+installed_cmd = "eza --version"
+installed_re = "v([0-9.]+)"
+
+[[tool]]
+id = "tmux"
+name = "tmux"
+kind = "pkg"
+category = "system"
+priority = "P1"
+pkg = { debian = "tmux", arch = "tmux", brew = "tmux" }
+
+[[tool]]
+id = "tokei"
+name = "tokei"
+kind = "cargo"
+category = "search"
+priority = "P1"
+crate = "tokei"
+pkg = { arch = "tokei", brew = "tokei" }
+
+[[tool]]
+id = "ast-grep"
+cmd = "sg"
+name = "ast-grep"
+kind = "cargo"
+category = "search"
+priority = "P1"
+crate = "ast-grep"
+pkg = { arch = "ast-grep", brew = "ast-grep" }
+
+[[tool]]
+id = "codegraph"
+name = "CodeGraph"
+kind = "node"
+category = "search"
+priority = "P1"
+npm_pkg = "@colbymchenry/codegraph"
+requires = ["volta"]
+notes = "Code knowledge-graph MCP server (codegraph serve --mcp). Install via volta so its shim lands on PATH."
+
+# ─────────────────────────────────────────── P1: language servers (LSP)
+[[tool]]
+id = "pyright"
+cmd = "pyright-langserver"
+name = "pyright (LSP)"
+kind = "node"
+category = "lsp"
+priority = "P1"
+npm_pkg = "pyright"
+requires = ["volta"]
+notes = "Python LSP server (via volta/pnpm)"
+
+# ─────────────────────────────────────────── P1: AI coding agents
+[[tool]]
+id = "opencode"
+name = "opencode"
+kind = "curl"
+category = "ai-cli"
+priority = "P1"
+url = "https://opencode.ai/install"
+shell = "bash"
+brew = "sst/tap/opencode"
+bin_dir = "~/.opencode/bin"
+notes = "Terminal AI coding agent. Wired by gentle-ai."
+
+[[tool]]
+id = "pi"
+name = "Pi"
+kind = "curl"
+category = "ai-cli"
+priority = "P1"
+url = "https://pi.dev/install.sh"
+shell = "sh"
+bin_dir = "~/.pi/bin"
+requires = ["volta", "node"]
+notes = "Pi coding agent (needs Node 22+). Prereq for gentle-ai --agent pi."
+
+# ─────────────────────────────────────────── P2: git & viewing
+[[tool]]
+id = "bat"
+name = "bat"
+kind = "pkg"
+category = "nav"
+priority = "P2"
+pkg = { debian = "bat", arch = "bat", brew = "bat" }
+alias_cmd = "batcat"
+notes = "Debian binary: batcat"
+
+[[tool]]
+id = "delta"
+name = "delta"
+kind = "cargo"
+category = "git"
+priority = "P2"
+crate = "git-delta"
+pkg = { arch = "git-delta", brew = "git-delta" }
+
+[[tool]]
+id = "lazygit"
+name = "lazygit"
+kind = "github-release"
+category = "git"
+priority = "P2"
+repo = "jesseduffield/lazygit"
+asset = "lazygit_{ver}_Linux_{arch.suffix}.tar.gz"
+member = "lazygit"
+bin_dir = "~/.local/bin"
+notes = "Binary from GitHub"
+[tool.version]
+latest = "github:jesseduffield/lazygit"
+installed_cmd = "lazygit --version"
+installed_re = "version=([0-9.]+)"
+
+# ─────────────────────────────────────────── P2: system utilities
+[[tool]]
+id = "htop"
+name = "htop"
+kind = "pkg"
+category = "system"
+priority = "P2"
+pkg = { debian = "htop", arch = "htop", brew = "htop" }
+
+[[tool]]
+id = "btop"
+name = "btop"
+kind = "custom"
+fn = "install_btop"
+category = "system"
+priority = "P2"
+notes = "apt / snap fallback on Debian"
+
+[[tool]]
+id = "ncdu"
+name = "ncdu"
+kind = "pkg"
+category = "system"
+priority = "P2"
+pkg = { debian = "ncdu", arch = "ncdu", brew = "ncdu" }
+
+[[tool]]
+id = "httpie"
+cmd = "http"
+name = "httpie"
+kind = "pkg"
+category = "extras"
+priority = "P2"
+pkg = { debian = "httpie", arch = "httpie", brew = "httpie" }
+
+[[tool]]
+id = "fzf"
+name = "fzf"
+kind = "pkg"
+category = "nav"
+priority = "P2"
+pkg = { debian = "fzf", arch = "fzf", brew = "fzf" }
+
+[[tool]]
+id = "vim"
+name = "vim"
+kind = "pkg"
+category = "system"
+priority = "P2"
+pkg = { debian = "vim", arch = "vim", brew = "vim" }
+
+[[tool]]
+id = "tree"
+name = "tree"
+kind = "pkg"
+category = "nav"
+priority = "P2"
+pkg = { debian = "tree", arch = "tree", brew = "tree" }
+
+# ─────────────────────────────────────────── P2: code navigation
+[[tool]]
+id = "ast-bro"
+name = "ast-bro"
+kind = "custom"
+fn = "install_ast_bro"
+category = "workflow"
+priority = "P2"
+notes = "MCP server: ast-bro install --mcp claude"
+
+# ─────────────────────────────────────────── P3: extra utilities
+[[tool]]
+id = "dust"
+name = "dust"
+kind = "cargo"
+category = "system"
+priority = "P3"
+crate = "du-dust"
+pkg = { arch = "dust", brew = "du-dust" }
+
+[[tool]]
+id = "sd"
+name = "sd"
+kind = "cargo"
+category = "data"
+priority = "P3"
+crate = "sd"
+pkg = { arch = "sd", brew = "sd" }
+
+[[tool]]
+id = "hyperfine"
+name = "hyperfine"
+kind = "cargo"
+category = "system"
+priority = "P3"
+crate = "hyperfine"
+pkg = { arch = "hyperfine", brew = "hyperfine" }
+
+[[tool]]
+id = "tldr"
+name = "tldr"
+kind = "pkg"
+category = "extras"
+priority = "P3"
+pkg = { debian = "tldr", arch = "tldr", brew = "tldr" }
+
+[[tool]]
+id = "gron"
+name = "gron"
+kind = "github-release"
+category = "data"
+priority = "P3"
+repo = "tomnomnom/gron"
+asset = "gron-linux-{arch.go}-{ver}.tgz"
+member = "gron"
+bin_dir = "~/.local/bin"
+notes = "Binary from GitHub (uses arch go)"
+[tool.version]
+latest = "github:tomnomnom/gron"
+installed_cmd = "gron --version"
+installed_re = "version ([0-9.]+)"
+
+[[tool]]
+id = "jless"
+name = "jless"
+kind = "custom"
+fn = "install_jless"
+category = "data"
+priority = "P3"
+notes = "Requires xcb dev libs on Debian; pacman/brew elsewhere"
+
+[[tool]]
+id = "subl"
+name = "Sublime Text"
+kind = "custom"
+fn = "install_subl"
+category = "extras"
+priority = "P3"
+notes = "~/.local/bin/subl symlink (no sudo on macOS)"
+
+# ═══════════════════════════════════════════ AI toolkits ═══════════════════════
+[[tool]]
+id = "superpowers"
+name = "Superpowers"
+kind = "marketplace"
+category = "ai"
+priority = "P1"
+marketplace = "superpowers-marketplace"
+marketplace_ref = "obra/superpowers"
+plugins = ["superpowers", "superpowers-chrome", "superpowers-developing-for-claude-code"]
+
+[[tool]]
+id = "agent-toolkit"
+name = "Softaworks agent-toolkit"
+kind = "marketplace"
+category = "ai"
+priority = "P1"
+marketplace = "agent-toolkit"
+marketplace_ref = "softaworks/agent-toolkit"
+
+[[tool]]
+id = "gsd"
+name = "GSD Core"
+kind = "launcher"
+category = "ai"
+priority = "P1"
+cmd = "npx"
+wiring = "npx @opengsd/gsd-core@latest"
+update = "npx @opengsd/gsd-core@latest"
+interactive = true
+verify = "/gsd-new-project"
+notes = "Interactive npx installer; wires Claude Code. Repo: open-gsd/gsd-core"
+
+[[tool]]
+id = "gentle-ai"
+name = "Gentle-AI"
+kind = "launcher"
+category = "ai"
+priority = "P1"
+cmd = "gentle-ai"
+bootstrap_brew = "brew tap Gentleman-Programming/homebrew-tap && brew install gentle-ai"
+bootstrap_curl = "curl -fsSL https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/scripts/install.sh | bash"
+wiring = "gentle-ai install --agent claude-code,opencode --scope global"
+update = "gentle-ai update"
+interactive = true
+wired_marker = "~/.gentle-ai/state.json"
+verify = "gentle-ai doctor"
+notes = "Configurator: binary via brew/curl/go, then `install` (TUI). Update = `gentle-ai update`."
