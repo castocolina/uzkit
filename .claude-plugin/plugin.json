@@ -1,0 +1,9 @@
+{
+  "name": "uz-kit",
+  "description": "Personal kit of Claude Code skills and slash commands. Currently includes a clean-context spec/plan review-and-fix workflow (reviewing-specs reviewer, applying-review-feedback fixer, /review-spec orchestrator).",
+  "version": "0.1.0",
+  "author": {
+    "name": "Uzer Zer0",
+    "email": "castocolina.dev@gmail.com"
+  }
+}
